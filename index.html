@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>寰宇杀桌游数据管理器</title>
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <!-- 修改 Firebase SDK 导入方式 -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <script>
+        // Firebase 配置
+        const firebaseConfig = {
+            apiKey: "AIzaSyDmY3g_u7KvOQsMwo69-8_TUP9YdAdqenU",
+            authDomain: "huanyusha3.firebaseapp.com",
+            databaseURL: "https://huanyusha3-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "huanyusha3",
+            storageBucket: "huanyusha3.firebasestorage.app",
+            messagingSenderId: "424060458957",
+            appId: "1:424060458957:web:badb8d58d8e1cef99b9684",
+            measurementId: "G-B9R41QMMM4"
+        };
+
+        // 初始化 Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        
+        // 将 Firebase 函数暴露到全局作用域
+        window.db = db;
+        window.dbRef = db.ref.bind(db);
+        window.dbSet = (ref, data) => ref.set(data);
+        window.dbOnValue = (ref, callback) => ref.on('value', callback);
+        window.dbOnDisconnect = (ref) => ref.onDisconnect();
+    </script>
+    <link rel="stylesheet" href="style.css">
+    <!-- 添加元素损伤相关CSS文件 -->
+    <link rel="stylesheet" href="elements/element.css">
+    <!-- 添加日志功能CSS文件 -->
+    <link rel="stylesheet" href="logs/log.css">
+</head>
+<body>
+    <header>
+        <h1>寰宇杀桌游数据管理器</h1>
+        <div class="round-counter">
+            <span class="label">回合</span>
+            <button onclick="changeRound(-1)">-</button>
+            <span id="roundCount" class="value">1</span>
+            <button onclick="changeRound(1)">+</button>
+        </div>
+        
+        <!-- 添加房间控制UI -->
+        <div class="room-controls" id="roomControls">
+            <div class="room-header">
+                <div class="room-title-section">
+                    <h3 class="room-title">房间控制</h3>
+                    <button class="copy-button" onclick="copyRoomId()">复制房间号</button>
+                    <button class="hide-room-btn" onclick="hideRoomPanel()" title="完全隐藏">🔶</button>
+                </div>
+                <button class="room-close" onclick="toggleRoomPanel()">&times;</button>
+            </div>
+            <div class="room-content">
+                <div class="room-info">
+                    <span class="online-status connected" id="onlineStatus" title="连接状态"></span>
+                    <span>房间ID: </span>
+                    <span class="room-id" id="roomId"></span>
+                </div>
+                <div class="room-buttons">
+                    <button class="btn btn-primary" onclick="createRoom()">创建房间</button>
+                    <button class="btn btn-info" onclick="showJoinRoomModal()">加入房间</button>
+                    <button class="btn btn-danger" onclick="exitRoom()">退出房间</button>
+                </div>
+                <div class="room-members">
+                    <div class="room-members-title">房间成员</div>
+                    <div class="member-list" id="memberList">
+                        <!-- 成员列表将在这里动态生成 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 房间面板完全隐藏时的显示按钮 -->
+        <div class="room-show-btn" id="roomShowBtn" style="display: none;">
+            <button onclick="showRoomPanel()" title="显示房间控制">📡</button>
+        </div>
+    </header>
+    
+    <!-- 添加加入房间的模态框 -->
+    <div id="joinRoomModal" class="join-room-modal">
+        <div class="join-room-content">
+            <h3>加入房间</h3>
+            <input type="text" id="roomIdInput" placeholder="请输入房间号">
+            <div class="modal-buttons">
+                <button onclick="closeJoinRoomModal()" class="cancel-button">取消</button>
+                <button onclick="joinRoom()">加入</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="controls">
+            <button id="addFriendlyBtn">添加友方单位</button>
+            <button id="addEnemyBtn">添加敌方单位</button>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab active" data-tab="friendly">友方单位</button>
+            <button class="tab" data-tab="enemy">敌方单位</button>
+            <button class="tab" data-tab="leaderboard">排行榜</button>
+            <button class="tab" data-tab="logs">战斗日志</button>
+        </div>
+        
+        <div id="friendly" class="tab-content active">
+            <table id="friendlyTable">
+                <thead>
+                    <tr>
+                        <th>⋮⋮</th>
+                        <th>名称</th>
+                        <th>职业</th>
+                        <th>攻击范围</th>
+                        <th>部署费用</th>
+                        <th>阻挡数</th>
+                        <th>攻击间隔</th>
+                        <th>生命上限</th>
+                        <th>当前生命值</th>
+                        <th>攻击力</th>
+                        <th>防御力</th>
+                        <th>法术抗性</th>
+                        <th>元素损伤</th>
+                        <th>技能时间</th>
+                        <th>冷却时间</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                        <th>再部署时间</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- 友方单位数据行将在这里动态生成 -->
+                </tbody>
+            </table>
+        </div>
+        
+        <div id="enemy" class="tab-content">
+            <table id="enemyTable">
+                <thead>
+                    <tr>
+                        <th>⋮⋮</th>
+                        <th>名称</th>
+                        <th>职业</th>
+                        <th>攻击范围</th>
+                        <th>部署费用</th>
+                        <th>阻挡数</th>
+                        <th>攻击间隔</th>
+                        <th>生命上限</th>
+                        <th>当前生命值</th>
+                        <th>攻击力</th>
+                        <th>防御力</th>
+                        <th>法术抗性</th>
+                        <th>元素损伤</th>
+                        <th>技能时间</th>
+                        <th>冷却时间</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                        <th>再部署时间</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- 敌方单位数据行将在这里动态生成 -->
+                </tbody>
+            </table>
+        </div>
+
+        <div id="leaderboard" class="tab-content">
+            <div class="leaderboard-filters-container">
+                <div class="leaderboard-filter type-filter">
+                    <span>阵营筛选:</span>
+                    <button class="leaderboard-filter-btn active" data-type="all" onclick="switchLeaderboardType('all')">全部</button>
+                    <button class="leaderboard-filter-btn" data-type="friendly" onclick="switchLeaderboardType('friendly')">友方</button>
+                    <button class="leaderboard-filter-btn" data-type="enemy" onclick="switchLeaderboardType('enemy')">敌方</button>
+                </div>
+                <div class="leaderboard-filter view-filter">
+                    <span>榜单查看:</span>
+                    <button class="leaderboard-view-btn active" data-view="totalDamageDealt" onclick="switchLeaderboardView('totalDamageDealt')">伤害输出榜</button>
+                    <button class="leaderboard-view-btn" data-view="totalElementDamageDealt" onclick="switchLeaderboardView('totalElementDamageDealt')">元素伤害榜</button>
+                    <button class="leaderboard-view-btn" data-view="totalDamageTaken" onclick="switchLeaderboardView('totalDamageTaken')">承受伤害榜</button>
+                    <button class="leaderboard-view-btn" data-view="totalHealingDone" onclick="switchLeaderboardView('totalHealingDone')">治疗输出榜</button>
+                    <button class="leaderboard-view-btn" data-view="totalElementHealingDone" onclick="switchLeaderboardView('totalElementHealingDone')">元素治疗榜</button>
+                </div>
+            </div>
+            <div class="leaderboard-hierarchy" id="leaderboardHierarchy">
+                <!-- 分层级排行榜内容将通过JS生成 -->
+            </div>
+        </div>
+
+        <div id="logs" class="tab-content">
+            <div class="log-panel">
+                <div class="log-header">
+                    <h3 class="log-title">战斗日志</h3>
+                    <div class="log-controls">
+                        <button class="log-control-btn auto-scroll-btn">关闭自动滚动</button>
+                        <button class="log-control-btn export-log-btn">导出日志</button>
+                        <button class="log-control-btn clear-btn clear-log-btn">清空日志</button>
+                    </div>
+                </div>
+                
+                <div class="log-filters">
+                    <div class="log-filter-group">
+                        <span class="log-filter-label">阵营:</span>
+                        <button class="log-filter-btn active" data-filter-type="faction" data-filter-value="all">全部</button>
+                        <button class="log-filter-btn" data-filter-type="faction" data-filter-value="friendly">友方</button>
+                        <button class="log-filter-btn" data-filter-type="faction" data-filter-value="enemy">敌方</button>
+                        <button class="log-filter-btn" data-filter-type="faction" data-filter-value="system">系统</button>
+                    </div>
+                    
+                    <div class="log-filter-group">
+                        <span class="log-filter-label">类型:</span>
+                        <button class="log-filter-btn active" data-filter-type="type" data-filter-value="all">全部</button>
+                        <button class="log-filter-btn" data-filter-type="type" data-filter-value="combat">战斗</button>
+                        <button class="log-filter-btn" data-filter-type="type" data-filter-value="element">元素</button>
+                        <button class="log-filter-btn" data-filter-type="type" data-filter-value="healing">治疗</button>
+                        <button class="log-filter-btn" data-filter-type="type" data-filter-value="status">状态</button>
+                        <button class="log-filter-btn" data-filter-type="type" data-filter-value="death">死亡</button>
+                        <button class="log-filter-btn" data-filter-type="type" data-filter-value="deploy">入离场</button>
+                        <button class="log-filter-btn" data-filter-type="type" data-filter-value="round">回合</button>
+                    </div>
+                </div>
+                
+                <div class="log-content" id="logContent">
+                    <div class="log-empty">暂无日志记录</div>
+                </div>
+                
+                <div class="log-stats" id="logStats">
+                    <div class="log-stat-item">
+                        <span>总计:</span>
+                        <span class="log-stat-number">0</span>
+                    </div>
+                    <div class="log-stat-item">
+                        <span>友方:</span>
+                        <span class="log-stat-number">0</span>
+                    </div>
+                    <div class="log-stat-item">
+                        <span>敌方:</span>
+                        <span class="log-stat-number">0</span>
+                    </div>
+                    <div class="log-stat-item">
+                        <span>系统:</span>
+                        <span class="log-stat-number">0</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="log-export-controls">
+                <div class="log-export-title">日志管理</div>
+                <div class="log-export-buttons">
+                    <button class="log-export-btn export-log-btn">导出JSON</button>
+                    <input type="file" id="importLogInput" style="display: none;" accept=".json">
+                    <button class="log-export-btn secondary" onclick="document.getElementById('importLogInput').click()">导入日志</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="save-controls">
+            <button id="saveDataBtn">保存数据</button>
+            <button id="loadDataBtn">加载数据</button>
+            <button id="exportDataBtn">导出JSON</button>
+            <button id="exportExcelBtn">导出Excel</button>
+            <input type="file" id="importDataInput" style="display: none;">
+            <button id="importDataBtn">导入JSON</button>
+            <input type="file" id="importExcelInput" style="display: none;" accept=".xlsx,.xls">
+            <button id="importExcelBtn">导入Excel</button>
+        </div>
+        
+        <div class="calculator" id="calculator">
+            <div class="calc-widget" data-calc-id="physical" draggable="true">
+                <div class="calc-widget-header">
+                    <h3>物理伤害计算</h3>
+                    <button class="calc-toggle-btn" onclick="toggleCalcWidget(this)">−</button>
+                </div>
+                <div class="calc-widget-content">
+                <div class="formula">攻击力 - 防御力</div>
+                <div class="calc-inputs">
+                    <label for="physicalAttack">攻击力:</label>
+                    <input type="number" id="physicalAttack" min="0" value="100">
+                    <label for="physicalDefense">防御力:</label>
+                    <input type="number" id="physicalDefense" min="0" value="50">
+                    <label for="physicalPenetration">物理穿透:</label>
+                    <input type="number" id="physicalPenetration" min="0" value="0">
+                    </div>
+                <button class="calc-button" id="calcPhysicalBtn">计算</button>
+                <div id="physicalDamageResult" class="calc-result">最终伤害: --</div>
+                </div>
+            </div>
+            
+            <div class="calc-widget" data-calc-id="magic" draggable="true">
+                <div class="calc-widget-header">
+                    <h3>法术伤害计算</h3>
+                    <button class="calc-toggle-btn" onclick="toggleCalcWidget(this)">−</button>
+                </div>
+                <div class="calc-widget-content">
+                <div class="formula">攻击力 × (1 - 法术抗性/100)</div>
+                <div class="calc-inputs">
+                    <label for="magicAttack">攻击力:</label>
+                    <input type="number" id="magicAttack" min="0" value="100">
+                    <label for="magicResistance">法抗(%):</label>
+                    <input type="number" id="magicResistance" min="0" max="100" value="20">
+                    <label for="magicPenetration">法术穿透:</label>
+                    <input type="number" id="magicPenetration" min="0" value="0">
+                    
+                    <!-- 法术抗性计算区域 -->
+                    <hr style="margin: 15px 0; border: none; border-top: 1px solid #e9ecef;">
+                    <div style="text-align: center; margin-bottom: 10px; font-weight: 600; color: #667eea;">法术抗性计算</div>
+                    <div style="font-size: 12px; color: #8e9aaf; margin-bottom: 10px; text-align: center;">
+                        公式: m = 100 × (1 - e^(-0.01 × (总防御-物理防御力)))
+                    </div>
+                    <div class="magic-resistance-section">
+                        <label for="totalDefense">总防御力:</label>
+                        <input type="number" id="totalDefense" min="0" value="100">
+                        <label for="physicalDefForMagic">物理防御力:</label>
+                        <input type="number" id="physicalDefForMagic" min="0" value="50">
+                    </div>
+                    </div>
+                <button class="calc-button" id="calcMagicBtn">计算</button>
+                <button class="calc-button" id="applyCalcResistanceBtn" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); margin-top: 5px;">使用计算法抗</button>
+                <div id="magicDamageResult" class="calc-result">最终伤害: --</div>
+                <div id="magicResistanceResult" class="calc-result" style="margin-top: 10px;">计算法抗: --</div>
+                </div>
+            </div>
+                
+            <div class="calc-widget" data-calc-id="dodge" draggable="true">
+                <div class="calc-widget-header">
+                    <h3>闪避计算</h3>
+                    <button class="calc-toggle-btn" onclick="toggleCalcWidget(this)">−</button>
+                </div>
+                <div class="calc-widget-content">
+                <div class="formula">实际闪避率 = 闪避率 - 无视闪避率</div>
+                <div class="calc-inputs">
+                    <label for="dodgeRate">闪避率(%):</label>
+                    <input type="number" id="dodgeRate" min="0" max="100" value="20">
+                    <label for="ignoreDodge">无视闪避率(%):</label>
+                    <input type="number" id="ignoreDodge" min="0" max="100" value="0">
+                </div>
+                <button class="calc-button" id="calcDodgeBtn">计算闪避</button>
+                <div id="dodgeResult" class="calc-result">实际闪避率: --</div>
+                <div id="dodgeRoll" class="calc-result" style="margin-top: 10px;">骰子结果: --</div>
+                <div id="dodgeOutcome" class="calc-result" style="margin-top: 10px; font-weight: bold;">等待计算...</div>
+                </div>
+            </div>
+                
+            <div class="calc-widget" data-calc-id="global-hp" draggable="true">
+                <div class="calc-widget-header">
+                    <h3>全体生命调整</h3>
+                    <button class="calc-toggle-btn" onclick="toggleCalcWidget(this)">−</button>
+                </div>
+                <div class="calc-widget-content">
+                <div class="formula">为所有单位增加/减少生命值</div>
+                <div class="calc-inputs">
+                    <label for="globalHpAdjustment">调整值:</label>
+                    <input type="number" id="globalHpAdjustment" value="100">
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 10px;">
+                    <button class="calc-button" id="healAllFriendlyBtn" style="background-color: #28a745;">治疗友方</button>
+                    <button class="calc-button" id="damageAllFriendlyBtn" style="background-color: #dc3545;">伤害友方</button>
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 10px;">
+                    <button class="calc-button" id="healAllEnemyBtn" style="background-color: #28a745;">治疗敌方</button>
+                    <button class="calc-button" id="damageAllEnemyBtn" style="background-color: #dc3545;">伤害敌方</button>
+                </div>
+                <div id="globalHpResult" class="calc-result" style="margin-top: 10px;">等待操作...</div>
+                </div>
+            </div>
+            
+            <!-- 添加费用计算组件 -->
+            <div class="calc-widget cost-calculator" data-calc-id="cost" draggable="true">
+                <div class="calc-widget-header">
+                    <h3>费用计算 <span id="costRound" style="margin-left: 5px; font-size: 12px; color: #666;">(回合: 1)</span></h3>
+                    <div class="calc-widget-header-buttons">
+                        <button class="calc-button" style="padding: 2px 5px; font-size: 12px;" onclick="resetAllCosts()">重置</button>
+                        <button class="calc-button" style="padding: 2px 5px; font-size: 12px;" onclick="toggleCostSettings()">设置</button>
+                        <button class="calc-toggle-btn" onclick="toggleCalcWidget(this)">−</button>
+                    </div>
+                </div>
+                <div class="calc-widget-content">
+                
+                <div class="players-container">
+                    <div class="player-pages" id="playerPages">
+                        <!-- 翻页内容将通过JS动态生成 -->
+                    </div>
+                    </div>
+                
+                <div class="cost-pagination" id="costPagination">
+                    <!-- 翻页按钮将通过JS动态生成 -->
+                </div>
+                
+                <div class="cost-settings" id="costSettings" style="display: none;">
+                    <div class="cost-settings-row">
+                        <label>每回合基础回费:</label>
+                        <input type="number" id="baseCostPerRound" value="3" min="0" max="10" onchange="updateCostSettings()">
+            </div>
+                    <div class="cost-settings-row">
+                        <label>每页显示玩家数:</label>
+                        <input type="number" id="playersPerPage" value="3" min="1" max="5" onchange="updateCostSettings()">
+                    </div>
+                    <div class="add-player-row">
+                        <input type="text" id="newPlayerName" placeholder="输入玩家名称">
+                        <button onclick="addPlayer()">添加玩家</button>
+                    </div>
+                </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 伤害计算弹窗 -->
+    <div id="damageModal" class="damage-modal">
+        <div class="damage-modal-content">
+            <h3>计算伤害</h3>
+            <select id="damageType" class="damage-type-select">
+                <option value="physical">物理伤害</option>
+                <option value="magic">法术伤害</option>
+            </select>
+            <div class="damage-inputs">
+                <label>攻击力:</label>
+                <input type="number" id="damageAtk" min="0" value="0">
+                <label id="penetrationLabel">物理穿透:</label>
+                <input type="number" id="damagePenetration" min="0" value="0">
+                    </div>
+            <div class="modal-buttons">
+                <button onclick="closeDamageModal()" class="cancel-button">取消</button>
+                <button onclick="calculateDamage()">确定</button>
+            </div>
+                    </div>
+                </div>
+                
+    <!-- 攻击弹窗 -->
+    <div id="attackModal" class="attack-modal">
+        <div class="attack-modal-content">
+            <h3>发起攻击</h3>
+            <select id="attackType" class="attack-type-select">
+                <option value="physical">物理攻击</option>
+                <option value="magic">法术攻击</option>
+                <option value="element">元素攻击</option>
+            </select>
+            
+            <!-- 元素攻击选项 -->
+            <div id="elementAttackOptions" style="display: none;">
+                <!-- 这里的内容将通过JS动态生成 -->
+            </div>
+            
+            <!-- 附带元素伤害选项 -->
+            <div id="elementDamageOptions" style="display: none;">
+                <!-- 这里的内容将通过JS动态生成 -->
+            </div>
+            
+            <!-- 元素治疗选项 -->
+            <div id="elementHealOptions" style="display: none;">
+                <!-- 这里的内容将通过JS动态生成 -->
+            </div>
+            
+            <!-- 治疗附带元素选项 -->
+            <div id="healWithElementOptions" style="display: none;">
+                <!-- 这里的内容将通过JS动态生成 -->
+            </div>
+            
+            <div class="target-selection">
+                <div class="target-header">
+                    <label>
+                        <input type="checkbox" id="selectAllTargets"> 全选
+                    </label>
+                </div>
+                <div id="targetList" class="target-list">
+                    <!-- 目标列表将动态填充 -->
+                </div>
+            </div>
+            <div class="attack-inputs">
+                <label>攻击力:</label>
+                <input type="number" id="attackerAtk" readonly>
+                <label>伤害倍率(%):</label>
+                <input type="number" id="damageMultiplier" value="100" min="0" step="10">
+                <label id="penetrationLabel">物理穿透:</label>
+                <input type="number" id="attackPenetration" value="0" min="0">
+            </div>
+            
+            <div class="attack-options">
+                <div class="attack-option-row">
+                    <label>攻击次数:</label>
+                    <div class="attack-option-value">
+                        <input type="number" id="attackCount" value="1" min="1" max="10" step="1">
+                    </div>
+                </div>
+                <div class="attack-option-row">
+                    <label>攻击加值:</label>
+                    <div class="attack-option-value">
+                        <input type="number" id="attackBonus" value="0" step="10">
+                    </div>
+                </div>
+                <div class="attack-option-row">
+                    <label>加值计算顺序:</label>
+                    <div class="attack-option-radio">
+                        <label>
+                            <input type="radio" name="bonusOrder" value="before" checked>
+                            先加值后倍率
+                        </label>
+                        <label>
+                            <input type="radio" name="bonusOrder" value="after">
+                            先倍率后加值
+                        </label>
+                    </div>
+                </div>
+                <div class="attack-option-row">
+                    <label>固定消耗间隔:</label>
+                    <div class="attack-option-value" style="display: flex; align-items: center;">
+                        <input type="checkbox" id="useFixedInterval" style="margin-right: 8px;">
+                        <input type="number" id="fixedIntervalValue" value="1" min="0.1" max="10" step="0.1" style="width: 70px;">
+                        <span style="margin-left: 5px;">秒</span>
+                    </div>
+                </div>
+                <div class="attack-option-row">
+                    <label>直接扣血/回血:</label>
+                    <div class="attack-option-value" style="display: flex; align-items: center;">
+                        <input type="checkbox" id="useDirectDamage" style="margin-right: 8px;">
+                        <input type="number" id="directDamageValue" value="100" min="1" step="10" style="width: 70px;">
+                        <span style="margin-left: 5px;">点</span>
+                    </div>
+                </div>
+                
+                <!-- 添加固定值元素损伤/治疗选项 -->
+                <div class="attack-option-row">
+                    <label>固定元素损伤/治疗:</label>
+                    <div class="attack-option-value" style="display: flex; align-items: center;">
+                        <input type="checkbox" id="useFixedElementDamage" style="margin-right: 8px;">
+                        <select id="fixedElementType" style="margin-right: 8px; width: 80px;">
+                            <option value="fire">灼燃</option>
+                            <option value="water">水蚀</option>
+                            <option value="neural">神经</option>
+                            <option value="wither">凋亡</option>
+                            <option value="thunder">雷电</option>
+                        </select>
+                        <input type="number" id="fixedElementValue" value="100" min="1" step="10" style="width: 70px;">
+                        <span style="margin-left: 5px;">点</span>
+                    </div>
+                </div>
+                
+                <!-- 添加固定值物理/法术伤害选项（考虑防御/抗性） -->
+                <div class="attack-option-row">
+                    <label>固定伤害(计算抗性):</label>
+                    <div class="attack-option-value" style="display: flex; align-items: center;">
+                        <input type="checkbox" id="useFixedAttackWithDefense" style="margin-right: 8px;">
+                        <input type="number" id="fixedAttackValue" value="100" min="1" step="10" style="width: 70px;">
+                        <span style="margin-left: 5px;">点</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-buttons">
+                <button onclick="closeAttackModal()" class="cancel-button">取消</button>
+                <button onclick="executeAttack()">攻击</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 状态添加弹窗 -->
+    <div id="statusModal" class="status-modal">
+        <div class="status-modal-content">
+            <h3>添加状态</h3>
+            <div class="status-inputs">
+                <label>状态名称:</label>
+                <input type="text" id="statusName" placeholder="例如：眩晕、中毒">
+                
+                <label>持续回合:</label>
+                <input type="number" id="statusDuration" min="1" value="1">
+            </div>
+            
+                    <div>
+                <label style="display: block; margin-bottom: 8px;">状态颜色:</label>
+                <div class="status-color">
+                    <div class="status-color-option selected" style="background-color: #007bff;" data-color="#007bff"></div>
+                    <div class="status-color-option" style="background-color: #28a745;" data-color="#28a745"></div>
+                    <div class="status-color-option" style="background-color: #dc3545;" data-color="#dc3545"></div>
+                    <div class="status-color-option" style="background-color: #ffc107;" data-color="#ffc107"></div>
+                    <div class="status-color-option" style="background-color: #6c757d;" data-color="#6c757d"></div>
+                    <div class="status-color-option" style="background-color: #17a2b8;" data-color="#17a2b8"></div>
+                    <div class="status-color-option" style="background-color: #e83e8c;" data-color="#e83e8c"></div>
+                    <div class="status-color-option" style="background-color: #6610f2;" data-color="#6610f2"></div>
+                    </div>
+                </div>
+                
+            <div class="modal-buttons">
+                <button onclick="closeStatusModal()" class="cancel-button">取消</button>
+                <button id="addStatusButton">添加</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 增益/减益 弹窗 -->
+    <div id="buffDebuffModal" class="attack-modal" style="display: none;">
+        <div class="attack-modal-content" style="width: 450px;">
+            <h3>添加增益/减益</h3>
+            <div class="attack-inputs">
+                <label for="buffProperty">选择属性:</label>
+                <select id="buffProperty">
+                    <option value="atk">攻击力</option>
+                    <option value="def">防御力</option>
+                    <option value="magicResistance">法术抗性</option>
+                    <option value="maxHp">生命上限</option>
+                    <option value="blockCount">阻挡数</option>
+                    <option value="attackInterval">攻击间隔</option>
+                    <!-- currentHp 暂时不直接通过buff修改，避免冲突 -->
+                </select>
+
+                <label for="buffType">类型:</label>
+                <div class="attack-option-radio">
+                    <label>
+                        <input type="radio" name="buffTypeOption" value="value" checked onchange="updateBuffValueInput()">
+                        固定值
+                    </label>
+                    <label>
+                        <input type="radio" name="buffTypeOption" value="percent" onchange="updateBuffValueInput()">
+                        百分比
+                    </label>
+                </div>
+
+                <label for="buffValue">数值:</label>
+                <div style="display: flex; align-items: center;">
+                    <input type="number" id="buffValue" value="10" step="1">
+                    <span id="buffValueSuffix" style="margin-left: 5px;"></span>
+                </div>
+                
+                <label for="buffDuration">持续回合:</label>
+                <input type="number" id="buffDuration" value="1" min="1">
+            </div>
+            <div class="modal-buttons">
+                <button onclick="closeBuffDebuffModal()" class="cancel-button">取消</button>
+                <button onclick="applyBuffDebuff()">确定</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 费用修改弹窗 -->
+    <div id="costEditModal" class="damage-modal">
+        <div class="damage-modal-content">
+            <h3>修改费用</h3>
+            <div class="damage-inputs">
+                <label>玩家:</label>
+                <span id="costPlayerName"></span>
+                <label>当前费用:</label>
+                <span id="costCurrentValue"></span>
+                <label>新费用:</label>
+                <input type="number" id="costNewValue" min="0" value="0">
+            </div>
+            <div class="modal-buttons">
+                <button onclick="closeCostEditModal()" class="cancel-button">取消</button>
+                <button onclick="submitCostEdit()">确定</button>
+            </div>
+        </div>
+    </div>
+
+<script src="script.js"></script>
+<!-- 添加元素损伤相关JS文件 -->
+<script src="elements/element.js"></script>
+<!-- 添加日志功能JS文件 -->
+<script src="logs/log.js"></script>
+<!-- 添加行拖拽排序功能JS文件 -->
+<script src="row-sorting.js"></script>
+
+</body>
+</html>
